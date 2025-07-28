@@ -65,6 +65,8 @@ def run_query(url, token, org, bucket, since, plugin, field=None, inventory_id=N
     client = InfluxDBClient(url=url, token=token, org=org)
     query_api = client.query_api()
 
+    click.echo(f"🔄 Running query: {flux_query.strip()}")
+
     try:
         result = query_api.query(flux_query)
         records = []
@@ -134,7 +136,7 @@ def run_plugin(plugin, field=None, url=None, token=None, org=None, bucket=None, 
 @click.option('--since', default='-10m', show_default=True, help='Time range (e.g., -10m, -1h, -1d)')
 @click.option('--plugin', required=True, help='Plugin to filter by (e.g., proxmox, pdu, scaphandre) Use "all" to run all plugins.')
 @click.option('--vm-name-filter', default='^neuronet-', show_default=True, help='Optional regex filter for vm_name (e.g., ^neuronet-)')
-@click.option('--output_dir', default='data', show_default=True, help='Output directory to save output files (default: data)')
+@click.option('--output-dir', default='data', show_default=True, help='Output directory to save output files (default: data)')
 def main(url, token, org, bucket, since, plugin, vm_name_filter, output_dir):
     """
     Query InfluxDB for data based on specified parameters and save results to CSV files.
