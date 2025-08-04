@@ -27,7 +27,7 @@ class PDUDataProcessor:
 
             # Pivot based on time and measurement field
             df_pivoted = df.pivot_table(
-                index=['_time', 'inventory-server-id', 'inventory-rack-id', 'placement'],
+                index=['_time', 'inventory-server-id', 'inventory-rack-id', 'placement'], # TODO: check if these columns make sense or other ones are needed
                 columns='_field',
                 values='_value',
                 aggfunc='mean'  # in case of duplicate rows
@@ -57,6 +57,6 @@ class PDUDataProcessor:
 
 if __name__ == "__main__":
     # Example usage
-    processor = PDUDataProcessor(directory="experiment1/")
+    processor = PDUDataProcessor(directory="data/")
     processor.run(output_csv="pdu_processed.csv")
     print("PDU data processing complete.")

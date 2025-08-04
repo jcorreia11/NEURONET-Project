@@ -35,7 +35,7 @@ class ScaphandreProcessor:
 
             # Pivot based on time and measurement field
             df_pivoted = df.pivot_table(
-                index=['_time', 'inventory-cluster-id', 'inventory-rack-id', 'url'],
+                index=['_time', 'inventory-cluster-id', 'inventory-rack-id', 'url'], # TODO: check if these columns make sense or other ones are needed
                 columns='_field',
                 values='_value',
                 aggfunc='mean'  # in case of duplicate rows
@@ -49,7 +49,7 @@ class ScaphandreProcessor:
 
             # Pivot based on time and measurement field
             df_pivoted = df.pivot_table(
-                index=['_time', 'inventory-cluster-id', 'inventory-rack-id', 'vm_id', 'vm_name'],
+                index=['_time', 'inventory-cluster-id', 'inventory-rack-id', 'vm_id', 'vm_name'], # TODO: check if these columns make sense or other ones are needed
                 columns='_field',
                 values='_value',
                 aggfunc='mean'  # in case of duplicate rows
@@ -65,7 +65,8 @@ class ScaphandreProcessor:
         """Save the final processed datasets to CSV files."""
         host_path = os.path.join(self.directory, 'processed', f'host_{output_path}')
         vm_path = os.path.join(self.directory, 'processed', f'vm_{output_path}')
-
+        if not os.path.exists(os.path.join(self.directory, 'processed')):
+            os.makedirs(os.path.join(self.directory, 'processed'))
         self.final_df_host.to_csv(host_path, index=False)
         self.final_df_vms.to_csv(vm_path, index=False)
 
@@ -75,4 +76,10 @@ class ScaphandreProcessor:
         self.process_dataframes()
         os.makedirs(os.path.join(self.directory, 'processed'), exist_ok=True)
         self.save_to_csv(output_csv)
-        print(f"✅ Processed data saved to: {os.path.join(self.directory, 'processed', output_csv)}")
+        print(f"Processed data saved to: {os.path.join(self.directory, 'processed', output_csv)}")
+
+if __name__ == "__main__":
+    # Example usage
+    processor = ScaphandreProcessor(directory="data/")
+    processor.run(output_csv="scaphandre_processed.csv")
+    print("Scaphandre data processing completed.")
