@@ -35,7 +35,7 @@ class ScaphandreProcessor:
 
             # Pivot based on time and measurement field
             df_pivoted = df.pivot_table(
-                index=['_time', 'inventory-cluster-id', 'inventory-rack-id', 'url'], # TODO: check if these columns make sense or other ones are needed
+                index=['_time', 'url'],
                 columns='_field',
                 values='_value',
                 aggfunc='mean'  # in case of duplicate rows
@@ -49,7 +49,7 @@ class ScaphandreProcessor:
 
             # Pivot based on time and measurement field
             df_pivoted = df.pivot_table(
-                index=['_time', 'inventory-cluster-id', 'inventory-rack-id', 'vm_id', 'vm_name'], # TODO: check if these columns make sense or other ones are needed
+                index=['_time', 'url', 'uuid', 'vm_id', 'vm_name'],
                 columns='_field',
                 values='_value',
                 aggfunc='mean'  # in case of duplicate rows
@@ -59,7 +59,15 @@ class ScaphandreProcessor:
 
         # Concatenate all processed frames
         self.final_df_host = pd.concat(processed_dfs_host, ignore_index=True).sort_values('_time')
+        # drop rows with nans
+        self.final_df_host.dropna(inplace=True)
+        # drop duplicate rows
+        self.final_df_host.drop_duplicates(inplace=True)
         self.final_df_vms = pd.concat(processed_dfs_vm, ignore_index=True).sort_values('_time')
+        # drop rows with nans
+        self.final_df_vms.dropna(inplace=True)
+        # drop duplicate rows
+        self.final_df_vms.drop_duplicates(inplace=True)
 
     def save_to_csv(self, output_path: str = "scaphandre_processed.csv"):
         """Save the final processed datasets to CSV files."""
@@ -80,6 +88,6 @@ class ScaphandreProcessor:
 
 if __name__ == "__main__":
     # Example usage
-    processor = ScaphandreProcessor(directory="data/")
+    processor = ScaphandreProcessor(directory="experiment/")
     processor.run(output_csv="scaphandre_processed.csv")
     print("Scaphandre data processing completed.")
