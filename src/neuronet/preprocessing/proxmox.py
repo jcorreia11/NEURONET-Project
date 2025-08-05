@@ -28,7 +28,7 @@ class ProxmoxDataProcessor:
 
             # Pivot based on time and measurement field
             df_pivoted = df.pivot_table(
-                index=['_time', 'vm_id', 'vm_name', 'node_fqdn'], # TODO: check if these columns make sense or other ones are needed
+                index=['_time', 'inventory-server-id', 'vm_id'],
                 columns='_field',
                 values='_value',
                 aggfunc='mean'
@@ -63,6 +63,6 @@ class ProxmoxDataProcessor:
 
 if __name__ == "__main__":
     # Example usage
-    processor = ProxmoxDataProcessor(directory="data/")
+    processor = ProxmoxDataProcessor(directory="experiment/")
     processor.run(output_csv="proxmox_processed.csv")
     print("Proxmox data processing complete.")
