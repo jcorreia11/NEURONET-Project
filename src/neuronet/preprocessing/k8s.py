@@ -25,10 +25,13 @@ class K8SProcessor:
         for df in self.dataframes:
             # Ensure proper timestamp format
             df['_time'] = pd.to_datetime(df['_time'])
+            df = df.drop(columns=['result', 'table', '_start', '_stop', '_measurement', 'inventory-cluster-id', 'inventory-rack-id', 'inventory-server-id', 'plugin'])
+            df = df[df['container_name'].notna()]
+            df = df[df['pod_name'].notna()]
 
             # Pivot based on time and measurement field
             df_pivoted = df.pivot_table(
-                index=['_time', 'namespace', 'pod_name'], # TODO: check if these columns make sense or other ones are needed
+                index=['_time', 'container_name', 'namespace', 'node_name', 'pod_name'],
                 columns='_field',
                 values='_value',
                 aggfunc='mean'  # in case of duplicate rows
@@ -53,6 +56,6 @@ class K8SProcessor:
 
 if __name__ == "__main__":
     # Example usage
-    processor = K8SProcessor(directory="data/")
+    processor = K8SProcessor(directory="experiment/")
     processor.run(output_csv="k8s_processed.csv")
     print("K8S data processing completed.")
