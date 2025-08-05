@@ -11,11 +11,11 @@ load_dotenv()
 
 ALL_PLUGINS = ["proxmox", "pdu", "scaphandre", "k8s", "kepler"]
 
-def get_inventory_ids(url, token, org, bucket, since, vm_name_filter):
+def get_inventory_ids(url, token, org, bucket, range, vm_name_filter):
     """Query Proxmox data to extract unique inventory-server-id values."""
     flux_query = f'''
     from(bucket: "{bucket}")
-      |> range(start: {since})
+      |> range({range})
       |> filter(fn: (r) =>
         r.vm_name =~ /{vm_name_filter}/ and
         r.plugin == "proxmox")
@@ -26,6 +26,7 @@ def get_inventory_ids(url, token, org, bucket, since, vm_name_filter):
     inventory_ids = set()
 
     try:
+        click.echo(f"🔄 Running query to get inventory IDs: {flux_query.strip()}")
         result = query_api.query(flux_query)
         for table in result:
             for record in table.records:
@@ -39,12 +40,12 @@ def get_inventory_ids(url, token, org, bucket, since, vm_name_filter):
 
     return sorted(inventory_ids)
 
-def run_query(url, token, org, bucket, since, plugin, field=None, inventory_id=None, vm_name_filter=None,
+def run_query(url, token, org, bucket, range, plugin, field=None, inventory_id=None, vm_name_filter=None,
               url_match=None, output_dir="data"):
     """Run a query for one inventory ID and save to file."""
     flux_query = f'''
     from(bucket: "{bucket}")
-        |> range(start: {since})
+        |> range({range})
         |> filter(fn: (r) => r.plugin == "{plugin}")
     '''
     if field:
@@ -92,10 +93,10 @@ def run_query(url, token, org, bucket, since, plugin, field=None, inventory_id=N
     finally:
         client.close()
 
-def run_plugin(plugin, field=None, url=None, token=None, org=None, bucket=None, since=None, vm_name_filter=None,
+def run_plugin(plugin, field=None, url=None, token=None, org=None, bucket=None, range=None, vm_name_filter=None,
                output_dir="data"):
     # First extract inventory IDs using Proxmox
-    inventory_ids = get_inventory_ids(url, token, org, bucket, since, vm_name_filter)
+    inventory_ids = get_inventory_ids(url, token, org, bucket, range, vm_name_filter)
     if not inventory_ids:
         click.echo("❌ No inventory-server-id found.")
         return
@@ -107,7 +108,7 @@ def run_plugin(plugin, field=None, url=None, token=None, org=None, bucket=None, 
                 token=token,
                 org=org,
                 bucket=bucket,
-                since=since,
+                range=range,
                 plugin=plugin,
                 field=field,
                 inventory_id=inv_id,
@@ -120,7 +121,7 @@ def run_plugin(plugin, field=None, url=None, token=None, org=None, bucket=None, 
             token=token,
             org=org,
             bucket=bucket,
-            since=since,
+            range=range,
             plugin=plugin,
             field=field,
             vm_name_filter=vm_name_filter,
@@ -133,11 +134,11 @@ def run_plugin(plugin, field=None, url=None, token=None, org=None, bucket=None, 
 @click.option('--token', default=None, show_default=True, help='Authorization token for InfluxDB')
 @click.option('--org', default='nextworks', show_default=True, help='InfluxDB organization name')
 @click.option('--bucket', default='monitoring', show_default=True, help='Bucket name')
-@click.option('--since', default='-10m', show_default=True, help='Time range (e.g., -10m, -1h, -1d)')
+@click.option('--range', default='start: -10m', show_default=True, help='Time range (e.g., start: -10m, start: 2025-08-01T00:00:00Z, stop: 2025-08-05T23:59:59Z)')
 @click.option('--plugin', required=True, help='Plugin to filter by (e.g., proxmox, pdu, scaphandre) Use "all" to run all plugins.')
 @click.option('--vm-name-filter', default='^neuronet-', show_default=True, help='Optional regex filter for vm_name (e.g., ^neuronet-)')
 @click.option('--output-dir', default='data', show_default=True, help='Output directory to save output files (default: data)')
-def main(url, token, org, bucket, since, plugin, vm_name_filter, output_dir):
+def main(url, token, org, bucket, range, plugin, vm_name_filter, output_dir):
     """
     Query InfluxDB for data based on specified parameters and save results to CSV files.
 
@@ -157,12 +158,12 @@ def main(url, token, org, bucket, since, plugin, vm_name_filter, output_dir):
     for plg in plugins_to_run:
         click.echo(f"🔄 Running queries for plugin: {plg}")
         if plg == "scaphandre":
-            run_plugin(plg, field=None, url=url, token=token, org=org, bucket=bucket, since=since,
+            run_plugin(plg, field=None, url=url, token=token, org=org, bucket=bucket, range=range,
                        vm_name_filter=vm_name_filter, output_dir=output_dir)
             run_plugin(plg, field="scaph_host_power_microwatts", url=url, token=token, org=org, bucket=bucket,
-                       since=since, vm_name_filter=vm_name_filter, output_dir=output_dir)
+                       range=range, vm_name_filter=vm_name_filter, output_dir=output_dir)
         else:
-            run_plugin(plg, field=None, url=url, token=token, org=org, bucket=bucket, since=since,
+            run_plugin(plg, field=None, url=url, token=token, org=org, bucket=bucket, range=range,
                        vm_name_filter=vm_name_filter, output_dir=output_dir)
 
 
