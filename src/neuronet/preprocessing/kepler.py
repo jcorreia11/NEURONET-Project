@@ -27,7 +27,7 @@ class KeplerPreprocessor:
 
             # Pivot based on time and measurement field
             df_pivoted = df.pivot_table(
-                index=['_time', 'container_name', 'inventory-cluster-id', 'inventory-rack-id', 'pod_name', 'url'],  # TODO: check if these columns make sense or other ones are needed
+                index=['_time', 'container_id', 'container_name', 'namespace', 'pod_name'],
                 columns='_field',
                 values='_value',
                 aggfunc='mean'  # in case of duplicate rows
@@ -52,6 +52,6 @@ class KeplerPreprocessor:
 
 if __name__ == "__main__":
     # Example usage
-    processor = KeplerPreprocessor(directory="data/")
+    processor = KeplerPreprocessor(directory="experiment/")
     processor.run(output_csv="kepler_processed.csv")
     print("Kepler data processing completed.")
