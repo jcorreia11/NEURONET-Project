@@ -1,0 +1,14 @@
+flux-node1,neuronet-k8s-m1
+flux-node1,neuronet-k8s-m2
+flux-node1,neuronet-k8s-m3
+flux-node1,neuronet-m2
+flux-node3,neuronet-k8s-lb
+flux-node3,neuronet-lb
+flux-node4,neuronet-m1
+flux-node4,neuronet-w1
+flux-node5,neuronet-k8s-w1
+flux-node5,neuronet-k8s-w2
+flux-node5,neuronet-k8s-w3
+flux-node5,neuronet-m3
+flux-node5,neuronet-w2
+flux-node5,neuronet-w3
