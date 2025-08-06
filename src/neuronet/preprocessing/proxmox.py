@@ -28,7 +28,7 @@ class ProxmoxDataProcessor:
 
             # Pivot based on time and measurement field
             df_pivoted = df.pivot_table(
-                index=['_time', 'inventory-server-id', 'vm_id'],
+                index=['_time', 'inventory-server-id', 'vm_id', 'vm_name'],
                 columns='_field',
                 values='_value',
                 aggfunc='mean'
