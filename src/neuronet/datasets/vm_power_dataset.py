@@ -3,7 +3,11 @@ import pandas as pd
 class VmPowerDatasetBuilder:
     def __init__(self, proxmox_df: pd.DataFrame, scaphandre_vm_df: pd.DataFrame, interval='1min'):
         self.proxmox_df = proxmox_df.copy()
+        # keep only k8s VMs
+        self.proxmox_df = self.proxmox_df[self.proxmox_df['vm_name'].str.contains('k8s', na=False)]
         self.scaphandre_vm_df = scaphandre_vm_df.copy()
+        # keep only k8s VMs
+        self.scaphandre_vm_df = self.scaphandre_vm_df[self.scaphandre_vm_df['vm_name'].str.contains('k8s', na=False)]
         self.interval = interval
         self.dataset = None
 
