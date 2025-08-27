@@ -73,8 +73,9 @@ class ScaphandreProcessor:
         """Save the final processed datasets to CSV files."""
         host_path = os.path.join(self.directory, 'processed', f'host_{output_path}')
         vm_path = os.path.join(self.directory, 'processed', f'vm_{output_path}')
-        if not os.path.exists(os.path.join(self.directory, 'processed')):
-            os.makedirs(os.path.join(self.directory, 'processed'))
+        os.makedirs(os.path.join(self.directory, 'processed'), exist_ok=True)
+        os.makedirs(os.path.dirname(host_path), exist_ok=True)
+        os.makedirs(os.path.dirname(vm_path), exist_ok=True)
         self.final_df_host.to_csv(host_path, index=False)
         self.final_df_vms.to_csv(vm_path, index=False)
 
