@@ -82,7 +82,7 @@ class ScaphandreProcessor:
         self.load_files()
         self.process_dataframes()
         os.makedirs(os.path.join(self.directory, 'processed'), exist_ok=True)
-        self.save_to_csv(os.path.join(self.directory, 'processed', output_csv))
+        self.save_to_csv(output_csv)
         print(f"Processed data saved to: {os.path.join(self.directory, 'processed', output_csv)}")
 
 if __name__ == "__main__":
