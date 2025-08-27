@@ -71,13 +71,11 @@ class ScaphandreProcessor:
 
     def save_to_csv(self, output_path: str = "scaphandre_processed.csv"):
         """Save the final processed datasets to CSV files."""
-        host_path = os.path.join(self.directory, 'processed', f'host_{output_path}')
-        vm_path = os.path.join(self.directory, 'processed', f'vm_{output_path}')
+        host_file = os.path.join(self.directory, 'processed', f'host_{output_path}')
+        vm_file = os.path.join(self.directory, 'processed', f'vm_{output_path}')
         os.makedirs(os.path.join(self.directory, 'processed'), exist_ok=True)
-        os.makedirs(os.path.dirname(host_path), exist_ok=True)
-        os.makedirs(os.path.dirname(vm_path), exist_ok=True)
-        self.final_df_host.to_csv(host_path, index=False)
-        self.final_df_vms.to_csv(vm_path, index=False)
+        self.final_df_host.to_csv(host_file, index=False)
+        self.final_df_vms.to_csv(vm_file, index=False)
 
     def run(self, output_csv: str = "scaphandre_processed.csv"):
         """Main execution method."""
