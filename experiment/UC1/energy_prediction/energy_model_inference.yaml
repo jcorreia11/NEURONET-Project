@@ -1,0 +1,13 @@
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  name: energy-usage-regression
+  namespace: kubeflow-user-example-com
+spec:
+  predictor:
+    sklearn:
+      storageUri: "http://10.255.40.15/pipeline/artifacts/minio/mlpipeline/v2/artifacts/energy-usage-regression-influxdb/9bf70d91-e126-4db6-838f-24bc7e114d59/train-model/output_model?namespace=kubeflow-user-example-com"
+      resources:
+        limits:
+          cpu: 0.2
+          memory: 512Mi
