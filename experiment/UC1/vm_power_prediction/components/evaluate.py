@@ -4,7 +4,8 @@ from kfp.dsl import Input, Output, Dataset, Model, Metrics, component
            packages_to_install=["pandas==2.2.2",
                                 "torch==2.2.0",
                                 "scikit-learn==1.5.2",
-                                "joblib==1.4.2"])
+                                "joblib==1.4.2",
+                                "numpy<2"])
 def evaluate_model(
     input_x_test: Input[Dataset],
     input_y_test: Input[Dataset],
