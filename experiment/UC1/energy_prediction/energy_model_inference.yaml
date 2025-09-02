@@ -6,8 +6,20 @@ metadata:
 spec:
   predictor:
     sklearn:
-      storageUri: "http://10.255.40.15/pipeline/artifacts/minio/mlpipeline/v2/artifacts/energy-usage-regression-influxdb/9bf70d91-e126-4db6-838f-24bc7e114d59/train-model/output_model?namespace=kubeflow-user-example-com"
-      resources:
-        limits:
-          cpu: 0.2
-          memory: 512Mi
+      runtimeVersion: "1.0"
+      storageUri: "s3://mlpipeline/v2/artifacts/energy-usage-regression-influxdb/25585ad2-ff48-4200-adcf-68684990cd46/train-model/output_model"
+      env:
+        - name: AWS_ACCESS_KEY_ID
+          valueFrom:
+            secretKeyRef:
+              name: minio-credentials
+              key: AWS_ACCESS_KEY_ID
+        - name: AWS_SECRET_ACCESS_KEY
+          valueFrom:
+            secretKeyRef:
+              name: minio-credentials
+              key: AWS_SECRET_ACCESS_KEY
+#      resources:
+#        limits:
+#          cpu: 0.2
+#          memory: 512Mi
