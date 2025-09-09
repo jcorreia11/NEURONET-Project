@@ -6,7 +6,7 @@ metadata:
 spec:
   predictor:
     sklearn:
-      runtimeVersion: "1.0"
+      image: "kserve/sklearnserver:v0.15.2"
       storageUri: "s3://mlpipeline/v2/artifacts/energy-usage-regression-influxdb/25585ad2-ff48-4200-adcf-68684990cd46/train-model/output_model"
       env:
         - name: AWS_ACCESS_KEY_ID
@@ -23,3 +23,15 @@ spec:
 #        limits:
 #          cpu: 0.2
 #          memory: 512Mi
+
+#apiVersion: serving.kserve.io/v1beta1
+#kind: InferenceService
+#metadata:
+#  name: energy-usage-regression
+#  namespace: kubeflow-user-example-com
+#spec:
+#  predictor:
+#    serviceAccountName: sa-minio-access
+#    sklearn:
+#      image: "kserve/sklearnserver:v0.15.2"
+#      storageUri: "s3://mlpipeline/v2/artifacts/energy-usage-regression-influxdb/25585ad2-ff48-4200-adcf-68684990cd46/train-model/output_model"
