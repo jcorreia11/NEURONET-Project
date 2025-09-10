@@ -13,6 +13,8 @@ def train_evaluate_model(
     input_val: Input[Dataset],
     input_test: Input[Dataset],
     input_scaler: Input[Model],
+    lookback: int, # e.g., last 96 timestamps
+    horizon: int, # predict next hour
     output_model: Output[Model],
     evaluation_metrics: Output[Metrics],
 ):
@@ -34,17 +36,16 @@ def train_evaluate_model(
             y = self.X[i + self.lookback: i + self.lookback + self.horizon]
             return x, y
 
-    lookback = 96  # e.g., last 96 timestamps (8h of 5‑min data)
-    horizon = 12  # predict next hour
-
     X_train = pd.read_csv(input_train.path)
     X_val = pd.read_csv(input_val.path)
     X_test = pd.read_csv(input_test.path)
 
+    feature_names = X_train.columns.tolist()
+
     train_ds = TimeSeriesDataset(X_train, lookback, horizon)
     val_ds = TimeSeriesDataset(X_val, lookback, horizon)
     test_ds = TimeSeriesDataset(X_test, lookback, horizon)
-    train_loader = DataLoader(train_ds, batch_size=32, shuffle=True)
+    train_loader = DataLoader(train_ds, batch_size=32)
     val_loader = DataLoader(val_ds, batch_size=32)
     test_loader = DataLoader(test_ds, batch_size=32)
 
@@ -140,7 +141,7 @@ def train_evaluate_model(
     from sklearn.metrics import mean_absolute_error, mean_squared_error
 
     print("Per-variable MAE and MSE:")
-    for i, col in enumerate(test_loader.columns):
+    for i, col in enumerate(feature_names):
         mae = mean_absolute_error(flat_trues_original[:, i], flat_preds_original[:, i])
         mse = mean_squared_error(flat_trues_original[:, i], flat_preds_original[:, i])
         print(f"{col}: MAE = {mae:.4f}, MSE = {mse:.4f}")
