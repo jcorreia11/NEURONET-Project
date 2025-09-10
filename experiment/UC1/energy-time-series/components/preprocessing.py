@@ -46,14 +46,12 @@ def preprocess_data(
     # Step 3: Combine datasets using EnergyDatasetBuilder
     builder = EnergyDatasetBuilder(k8s_df, kepler_df, interval='1min')
     energy_dataset = builder.build()
+    energy_dataset['_time'] = pd.to_datetime(energy_dataset['_time'])
+    energy_dataset = energy_dataset.set_index('_time').sort_index().reset_index()
     print(f"Combined energy dataset shape: {energy_dataset.shape}")
 
     # Step 4: Split into features and target
-    data = energy_dataset[features]
-
-    # set time as index
-    data['_time'] = pd.to_datetime(data['_time'])
-    df = data.set_index('_time').sort_index().reset_index()
+    df = energy_dataset[features]
 
     # Step 5: Timeseries splits
     train_end = int(len(df) * (1 - test_perc - val_perc))
@@ -66,16 +64,14 @@ def preprocess_data(
     from sklearn.preprocessing import StandardScaler
 
     scaler = StandardScaler()
-    train_df = scaler.fit_transform(train_df)
-    val_df = scaler.transform(val_df)
-    test_df = scaler.transform(test_df)
+    scaler.fit(train_df)
 
     # save scaler
     import joblib
     joblib.dump(scaler, output_scaler.path)
 
     train_scaled = pd.DataFrame(
-        scaler.fit_transform(train_df),
+        scaler.transform(train_df),
         columns=train_df.columns,
         index=train_df.index
     )
