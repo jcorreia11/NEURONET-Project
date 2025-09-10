@@ -12,7 +12,7 @@ def preprocess_data(
     input_k8s_dir: Input[Dataset],
     features: List[str],
     test_perc: float,
-    val_perc: int,
+    val_perc: float,
     output_train: Output[Dataset],
     output_val: Output[Dataset],
     output_test: Output[Dataset],
@@ -74,9 +74,25 @@ def preprocess_data(
     import joblib
     joblib.dump(scaler, output_scaler.path)
 
+    train_scaled = pd.DataFrame(
+        scaler.fit_transform(train_df),
+        columns=train_df.columns,
+        index=train_df.index
+    )
+    val_scaled = pd.DataFrame(
+        scaler.transform(val_df),
+        columns=val_df.columns,
+        index=val_df.index
+    )
+    test_scaled = pd.DataFrame(
+        scaler.transform(test_df),
+        columns=test_df.columns,
+        index=test_df.index
+    )
+
     # Save the splits
-    train_df.to_csv(output_train.path, index=False)
-    val_df.to_csv(output_val.path, index=False)
-    test_df.to_csv(output_test.path, index=False)
+    train_scaled.to_csv(output_train.path, index=False)
+    val_scaled.to_csv(output_val.path, index=False)
+    test_scaled.to_csv(output_test.path, index=False)
 
     print("✅ Preprocessing done. Artifacts saved.")
