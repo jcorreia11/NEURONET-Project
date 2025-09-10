@@ -17,6 +17,8 @@ def energy_pipeline(
     features: List[str] = ["cpu_millicores", "memory_usage_mb", "logsfs_usage_percent", "container_power_watts"],
     test_perc: float = 0.2,
     val_perc: float = 0.1,
+    horizon: int = 10,  # predict next 10 minutes (assuming 1-min frequency)
+    lookback: int = 60  # use last 60 minutes to predict
 ):
     # 1. Get raw data from InfluxDB (two datasets: kepler and k8s)
     data = get_data(
@@ -40,6 +42,8 @@ def energy_pipeline(
         input_val=pre.outputs["output_val"],
         input_test=pre.outputs["output_test"],
         input_scaler=pre.outputs["output_scaler"],
+        lookback=lookback,
+        horizon=horizon
     )
 
 if __name__ == "__main__":
