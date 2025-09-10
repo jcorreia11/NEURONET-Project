@@ -46,6 +46,6 @@ if __name__ == "__main__":
     import kfp.compiler as compiler
     compiler.Compiler().compile(
         pipeline_func=energy_pipeline,
-        package_path="energy_pipeline.yaml"
+        package_path="time-series-energy-pipeline.yaml"
     )
-    print("Pipeline compiled to energy_pipeline.yaml")
+    print("Pipeline compiled to time-series-energy-pipeline.yaml")
