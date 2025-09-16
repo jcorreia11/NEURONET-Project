@@ -1,6 +1,6 @@
 from kfp.dsl import Input, Output, Dataset, Model, Metrics, component
 
-@component(base_image="python:3.11", packages_to_install=["git+https://github.com/thuml/iTransformer.git",
+@component(base_image="python:3.11", packages_to_install=["iTransformer",
                                                           "pandas==1.5.3",
                                                           "scikit-learn==1.2.2",
                                                           "numpy==1.23.5",
@@ -81,7 +81,9 @@ def train_evaluate_model(
             # Forward pass
             y_pred = model(x)
             # If model(x) returns a dictionary, uncomment this:
-            # y_pred = y_pred['pred']  # or the correct key
+            if isinstance(y_pred, dict):
+                # Get the first (and likely only) tensor in the dict
+                y_pred = next(iter(y_pred.values()))
 
             # Check shapes
             if y_pred.shape != y_true.shape:
@@ -99,7 +101,9 @@ def train_evaluate_model(
                 x, y_true = x.to(device), y_true.to(device)
                 y_pred = model(x)
                 # If model(x) returns a dict, adjust accordingly:
-                # y_pred = y_pred['pred']
+                if isinstance(y_pred, dict):
+                    # Get the first (and likely only) tensor in the dict
+                    y_pred = next(iter(y_pred.values()))
 
                 if y_pred.shape != y_true.shape:
                     raise ValueError(f"Validation shape mismatch: {y_pred.shape} vs {y_true.shape}")

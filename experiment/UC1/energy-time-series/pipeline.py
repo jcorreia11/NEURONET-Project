@@ -12,8 +12,8 @@ from components.train_evaluate import train_evaluate_model
 )
 def energy_pipeline(
     token: str,
-    start: str = "2025-08-01T00:00:00Z",
-    stop: str = "2025-08-05T23:59:59Z",
+    start: str = "2025-08-23T19:10:50Z",
+    stop: str = "2025-08-25T19:10:57Z",
     features: List[str] = ["cpu_millicores", "memory_usage_mb", "logsfs_usage_percent", "container_power_watts"],
     test_perc: float = 0.2,
     val_perc: float = 0.1,
