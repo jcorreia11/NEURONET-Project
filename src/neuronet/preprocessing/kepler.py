@@ -12,7 +12,7 @@ class KeplerPreprocessor:
         elif isinstance(dfs, list):
             self.dataframes = dfs
         else:
-            self.dataframes = []
+            self.dataframes = dfs
         self.final_df = pd.DataFrame()
 
     # def load_files(self):
@@ -28,6 +28,7 @@ class KeplerPreprocessor:
         processed_dfs = []
 
         for df in self.dataframes:
+            print(f"TYPEEE: {type(df)}")
             # Ensure proper timestamp format
             df['_time'] = pd.to_datetime(df['_time'])
 
