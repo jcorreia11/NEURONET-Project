@@ -21,15 +21,15 @@ class K8SProcessor:
     def process_dataframes(self):
         """Process and pivot each raw K8S dataframe, then merge."""
         processed_dfs = []
+        self.dataframes = [df for df in self.dataframes if isinstance(df, pd.DataFrame)]
 
-        for df in self.dataframes:
-            for i, df in enumerate(self.dataframes):
-                if not isinstance(df, pd.DataFrame):
-                    print(f"⚠️ Skipping invalid dataframe at index {i}: {type(df)}")
-                    continue
-                if '_time' not in df.columns:
-                    print(f"⚠️ Skipping dataframe at index {i} because '_time' column is missing")
-                    continue
+        for i, df in enumerate(self.dataframes):
+            if not isinstance(df, pd.DataFrame):
+                print(f"⚠️ Skipping invalid dataframe at index {i}: {type(df)}")
+                continue
+            if '_time' not in df.columns:
+                print(f"⚠️ Skipping dataframe at index {i} because '_time' column is missing")
+                continue
             # Ensure proper timestamp format
             df['_time'] = pd.to_datetime(df['_time'])
             df = df.drop(columns=['result', 'table', '_start', '_stop', '_measurement', 'inventory-cluster-id', 'inventory-rack-id', 'inventory-server-id', 'plugin'])

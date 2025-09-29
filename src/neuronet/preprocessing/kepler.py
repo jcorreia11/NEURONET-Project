@@ -26,15 +26,15 @@ class KeplerPreprocessor:
     def process_dataframes(self):
         """Process and pivot each raw Kepler dataframe, then merge."""
         processed_dfs = []
+        self.dataframes = [df for df in self.dataframes if isinstance(df, pd.DataFrame)]
 
-        for df in self.dataframes:
-            for i, df in enumerate(self.dataframes):
-                if not isinstance(df, pd.DataFrame):
-                    print(f"⚠️ Skipping invalid dataframe at index {i}: {type(df)}")
-                    continue
-                if '_time' not in df.columns:
-                    print(f"⚠️ Skipping dataframe at index {i} because '_time' column is missing")
-                    continue
+        for i, df in enumerate(self.dataframes):
+            if not isinstance(df, pd.DataFrame):
+                print(f"⚠️ Skipping invalid dataframe at index {i}: {type(df)}")
+                continue
+            if '_time' not in df.columns:
+                print(f"⚠️ Skipping dataframe at index {i} because '_time' column is missing")
+                continue
             print(f"TYPEEE: {type(df)}")
             print(f"Columns: {df.columns.tolist()}")
             # check for nans
