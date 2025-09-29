@@ -7,8 +7,13 @@ import pandas as pd
 class K8SProcessor:
     def __init__(self, dfs):
         # self.directory = directory
-        self.dataframes: List[pd.DataFrame] = dfs
-        self.final_df: pd.DataFrame = pd.DataFrame()
+        if isinstance(dfs, pd.DataFrame):
+            self.dataframes = [dfs]
+        elif isinstance(dfs, list):
+            self.dataframes = dfs
+        else:
+            self.dataframes = dfs
+        self.final_df = pd.DataFrame()
 
     # def load_files(self):
     #     """Load all CSV files starting with 'k8s' from the directory."""
@@ -23,7 +28,6 @@ class K8SProcessor:
         processed_dfs = []
         self.dataframes = [df for df in self.dataframes if isinstance(df, pd.DataFrame)]
 
-        print(f"HEREEEE {self.dataframes}")
 
         for i, df in enumerate(self.dataframes):
             # Ensure proper timestamp format
