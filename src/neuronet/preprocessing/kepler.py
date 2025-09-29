@@ -30,6 +30,10 @@ class KeplerPreprocessor:
         for df in self.dataframes:
             print(f"TYPEEE: {type(df)}")
             print(f"Columns: {df.columns.tolist()}")
+            # check for nans
+            print(f"NANs: {df.isna().sum().sum()}")
+            # check type of columns
+            print(f"DTYPES: {df.dtypes}")
             # Ensure proper timestamp format
             df['_time'] = pd.to_datetime(df['_time'])
 
