@@ -29,6 +29,7 @@ class KeplerPreprocessor:
 
         for df in self.dataframes:
             print(f"TYPEEE: {type(df)}")
+            print(f"Columns: {df.columns.tolist()}")
             # Ensure proper timestamp format
             df['_time'] = pd.to_datetime(df['_time'])
 
