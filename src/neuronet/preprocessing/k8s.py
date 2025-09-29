@@ -5,18 +5,18 @@ import pandas as pd
 
 
 class K8SProcessor:
-    def __init__(self, directory):
-        self.directory = directory
-        self.dataframes: List[pd.DataFrame] = []
+    def __init__(self, dfs):
+        # self.directory = directory
+        self.dataframes: List[pd.DataFrame] = dfs
         self.final_df: pd.DataFrame = pd.DataFrame()
 
-    def load_files(self):
-        """Load all CSV files starting with 'k8s' from the directory."""
-        for filename in os.listdir(self.directory):
-            if filename.startswith("k8s") and filename.endswith(".csv"):
-                file_path = os.path.join(self.directory, filename)
-                df = pd.read_csv(file_path)
-                self.dataframes.append(df)
+    # def load_files(self):
+    #     """Load all CSV files starting with 'k8s' from the directory."""
+    #     for filename in os.listdir(self.directory):
+    #         if filename.startswith("k8s") and filename.endswith(".csv"):
+    #             file_path = os.path.join(self.directory, filename)
+    #             df = pd.read_csv(file_path)
+    #             self.dataframes.append(df)
 
     def process_dataframes(self):
         """Process and pivot each raw K8S dataframe, then merge."""
@@ -48,14 +48,16 @@ class K8SProcessor:
 
     def run(self, output_csv: str = "k8s_processed.csv"):
         """Main execution method."""
-        self.load_files()
+        # self.load_files()
         self.process_dataframes()
-        os.makedirs(os.path.join(self.directory, 'processed'), exist_ok=True)
-        self.save_to_csv(os.path.join(self.directory, 'processed', output_csv))
-        print(f"✅ Processed data saved to: {os.path.join(self.directory, 'processed', output_csv)}")
+        # os.makedirs(os.path.join(self.directory, 'processed'), exist_ok=True)
+        # self.save_to_csv(os.path.join(self.directory, 'processed', output_csv))
+        # print(f"✅ Processed data saved to: {os.path.join(self.directory, 'processed', output_csv)}")
+        return self.final_df
 
 if __name__ == "__main__":
     # Example usage
-    processor = K8SProcessor(directory="experiment/")
-    processor.run(output_csv="k8s_processed.csv")
-    print("K8S data processing completed.")
+    # processor = K8SProcessor(directory="experiment/")
+    # processor.run(output_csv="k8s_processed.csv")
+    # print("K8S data processing completed.")
+    pass

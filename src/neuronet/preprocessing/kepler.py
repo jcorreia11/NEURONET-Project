@@ -4,18 +4,18 @@ import pandas as pd
 
 
 class KeplerPreprocessor:
-    def __init__(self, directory):
-        self.directory = directory
-        self.dataframes = []
+    def __init__(self, dfs):
+        # self.directory = directory
+        self.dataframes = dfs
         self.final_df = pd.DataFrame()
 
-    def load_files(self):
-        """Load all CSV files starting with 'kepler' from the directory."""
-        for filename in os.listdir(self.directory):
-            if filename.startswith("kepler") and filename.endswith(".csv"):
-                file_path = os.path.join(self.directory, filename)
-                df = pd.read_csv(file_path)
-                self.dataframes.append(df)
+    # def load_files(self):
+    #     """Load all CSV files starting with 'kepler' from the directory."""
+    #     for filename in os.listdir(self.directory):
+    #         if filename.startswith("kepler") and filename.endswith(".csv"):
+    #             file_path = os.path.join(self.directory, filename)
+    #             df = pd.read_csv(file_path)
+    #             self.dataframes.append(df)
 
     def process_dataframes(self):
         """Process and pivot each raw Kepler dataframe, then merge."""
@@ -44,14 +44,16 @@ class KeplerPreprocessor:
 
     def run(self, output_csv: str = "kepler_processed.csv"):
         """Main execution method."""
-        self.load_files()
+        # self.load_files()
         self.process_dataframes()
-        os.makedirs(os.path.join(self.directory, 'processed'), exist_ok=True)
-        self.save_to_csv(os.path.join(self.directory, 'processed', output_csv))
-        print(f"✅ Processed data saved to: {os.path.join(self.directory, 'processed', output_csv)}")
+        #os.makedirs(os.path.join(self.directory, 'processed'), exist_ok=True)
+        #self.save_to_csv(os.path.join(self.directory, 'processed', output_csv))
+        #print(f"✅ Processed data saved to: {os.path.join(self.directory, 'processed', output_csv)}")
+        return self.final_df
 
 if __name__ == "__main__":
     # Example usage
-    processor = KeplerPreprocessor(directory="experiment/")
-    processor.run(output_csv="kepler_processed.csv")
-    print("Kepler data processing completed.")
+    #processor = KeplerPreprocessor(directory="experiment/")
+    #processor.run(output_csv="kepler_processed.csv")
+    #print("Kepler data processing completed.")
+    pass
