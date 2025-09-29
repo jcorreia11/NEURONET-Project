@@ -6,7 +6,7 @@ import pandas as pd
 class KeplerPreprocessor:
     def __init__(self, dfs):
         # self.directory = directory
-        self.dataframes = dfs
+        self.dataframes = dfs or []
         self.final_df = pd.DataFrame()
 
     # def load_files(self):
