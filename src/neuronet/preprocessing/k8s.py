@@ -24,12 +24,6 @@ class K8SProcessor:
         self.dataframes = [df for df in self.dataframes if isinstance(df, pd.DataFrame)]
 
         for i, df in enumerate(self.dataframes):
-            if not isinstance(df, pd.DataFrame):
-                print(f"⚠️ Skipping invalid dataframe at index {i}: {type(df)}")
-                continue
-            if '_time' not in df.columns:
-                print(f"⚠️ Skipping dataframe at index {i} because '_time' column is missing")
-                continue
             # Ensure proper timestamp format
             df['_time'] = pd.to_datetime(df['_time'])
             df = df.drop(columns=['result', 'table', '_start', '_stop', '_measurement', 'inventory-cluster-id', 'inventory-rack-id', 'inventory-server-id', 'plugin'])
@@ -43,7 +37,8 @@ class K8SProcessor:
                 values='_value',
                 aggfunc='mean'  # in case of duplicate rows
             ).reset_index()
-
+            print(f"K8S!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+            print(df.head)
             processed_dfs.append(df_pivoted)
 
         # Concatenate all processed frames

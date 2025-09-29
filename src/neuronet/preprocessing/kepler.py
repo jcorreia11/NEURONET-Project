@@ -29,18 +29,6 @@ class KeplerPreprocessor:
         self.dataframes = [df for df in self.dataframes if isinstance(df, pd.DataFrame)]
 
         for i, df in enumerate(self.dataframes):
-            if not isinstance(df, pd.DataFrame):
-                print(f"⚠️ Skipping invalid dataframe at index {i}: {type(df)}")
-                continue
-            if '_time' not in df.columns:
-                print(f"⚠️ Skipping dataframe at index {i} because '_time' column is missing")
-                continue
-            print(f"TYPEEE: {type(df)}")
-            print(f"Columns: {df.columns.tolist()}")
-            # check for nans
-            print(f"NANs: {df.isna().sum().sum()}")
-            # check type of columns
-            print(f"DTYPES: {df.dtypes}")
             # Ensure proper timestamp format
             df['_time'] = pd.to_datetime(df['_time'])
 
@@ -51,7 +39,8 @@ class KeplerPreprocessor:
                 values='_value',
                 aggfunc='mean'  # in case of duplicate rows
             ).reset_index()
-
+            print(f"KEPLER!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+            print(df.head)
             processed_dfs.append(df_pivoted)
 
         # Concatenate all processed frames
