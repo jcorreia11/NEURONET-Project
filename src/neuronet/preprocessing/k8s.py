@@ -23,6 +23,8 @@ class K8SProcessor:
         processed_dfs = []
         self.dataframes = [df for df in self.dataframes if isinstance(df, pd.DataFrame)]
 
+        print(f"HEREEEE {self.dataframes}")
+
         for i, df in enumerate(self.dataframes):
             # Ensure proper timestamp format
             df['_time'] = pd.to_datetime(df['_time'])
