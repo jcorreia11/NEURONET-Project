@@ -15,6 +15,7 @@ class EnergyDatasetBuilder:
 
     def aggregate_kepler(self):
         """Group Kepler by _time + container_name + namespace + pod_name and sum joules."""
+        print(self.kepler_df.columns)
         kepler_grouped = (
             self.kepler_df
             .groupby(['_time', 'container_name', 'namespace', 'pod_name'], as_index=False)
