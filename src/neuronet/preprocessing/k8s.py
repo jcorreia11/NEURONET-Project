@@ -44,7 +44,7 @@ class K8SProcessor:
                 aggfunc='mean'  # in case of duplicate rows
             ).reset_index()
             print(f"K8S!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
-            print(df.head)
+            print(df_pivoted.head)
             processed_dfs.append(df_pivoted)
 
         # Concatenate all processed frames
