@@ -95,11 +95,15 @@ def optimize_model_hyperparameters_and_train(
         json.dump({"model": best_model_name, "parameters": best_params}, f, indent=2)
 
     BASE = "http://10.255.40.140:30080"
+    BASE = "http://fastapi-model-svc.admin.svc.cluster.local:8080"
     model_file_path = model_file.path
 
     post_url = f"{BASE}/model_serializer/{usecase}"
 
-    with open(model_file_path, "rb") as f:
+    # Also save as pkl file for POST
+    joblib.dump(final_model, "model.pkl")
+
+    with open("model.pkl", "rb") as f:
         response = requests.post(post_url, files={"file": f})
 
     if response.status_code == 200:
