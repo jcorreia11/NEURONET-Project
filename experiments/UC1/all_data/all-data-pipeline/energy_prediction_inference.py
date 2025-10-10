@@ -4,7 +4,7 @@ import requests
 
 FEATURES = ["cpuload", "mem_used", "swap_used"]
 TARGET = "activePower"
-BASE = "http://10.255.40.140:30080"
+BASE = "http://10.255.40.149:30080/"
 USECASE = "energy_prediction"
 
 def single_input_inference(cpu_load, mem_used, swap_used):
