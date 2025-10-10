@@ -8,7 +8,6 @@ from kfp.dsl import component, Input, Output, Dataset, Model
         "xgboost==1.7.5",
         "joblib==1.4.2",
         "requests==2.31.0",
-        "fsspec==2025.9.0",
     ]
 )
 def optimize_model_hyperparameters_and_train(
@@ -17,7 +16,8 @@ def optimize_model_hyperparameters_and_train(
     params_file: Output[Dataset],
     target: str,
     random_state: int = 42,
-    usecase: str = "energy_prediction"  # replace with your usecase
+    usecase: str = "energy_prediction",
+    post_base_url: str = "http://fastapi-model-svc.admin.svc.cluster.local:8080",
 ):
     import pandas as pd
     import joblib
@@ -28,16 +28,11 @@ def optimize_model_hyperparameters_and_train(
     from sklearn.svm import SVR
     from sklearn.linear_model import LinearRegression
     from xgboost import XGBRegressor
-    #import fsspec
 
     print("⏳ Optimize and train model component started.")
 
     print("Loading training data from:", train_data.path)
 
-    # Load training data
-    # Download MinIO artifact to local path
-    # with fsspec.open(train_data.path, 'r') as f:
-    #     train_df = pd.read_csv(f)
     train_df = pd.read_csv(train_data.path)
     X_train = train_df.drop(columns=[target])
     y_train = train_df[target].values.ravel()
@@ -94,8 +89,9 @@ def optimize_model_hyperparameters_and_train(
     with open(params_file.path, "w") as f:
         json.dump({"model": best_model_name, "parameters": best_params}, f, indent=2)
 
-    BASE = "http://10.255.40.140:30080"
-    BASE = "http://fastapi-model-svc.admin.svc.cluster.local:8080"
+    # BASE = "http://10.255.40.149:30080/"
+    # BASE = "http://fastapi-model-svc.admin.svc.cluster.local:8080"
+    BASE = post_base_url
     model_file_path = model_file.path
 
     post_url = f"{BASE}/model_serializer/{usecase}"

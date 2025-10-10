@@ -17,6 +17,7 @@ def energy_pipeline(
     test_size: float = 0.2,
     random_state: int = 42,
     usecase: str = "energy_prediction",
+    post_base_url: str = "http://fastapi-model-svc.admin.svc.cluster.local:8080",
 ):
     # 1. Get raw data
     data_task = get_data()
@@ -36,6 +37,7 @@ def energy_pipeline(
         target=target,
         random_state=random_state,
         usecase=usecase,
+        post_base_url=post_base_url,
     )
 
     # 4. Evaluate
