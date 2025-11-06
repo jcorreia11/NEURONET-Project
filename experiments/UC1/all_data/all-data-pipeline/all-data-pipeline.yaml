@@ -1,0 +1,440 @@
+# PIPELINE DEFINITION
+# Name: energy-usage-regression-minio
+# Description: Fetch data, preprocess, train RF, evaluate using MinIO storage.
+# Inputs:
+#    features: list [Default: ['cpuload', 'mem_used', 'swap_used']]
+#    post_base_url: str [Default: 'http://fastapi-model-svc.admin.svc.cluster.local:8080']
+#    random_state: int [Default: 42.0]
+#    target: str [Default: 'activePower']
+#    test_size: float [Default: 0.2]
+#    usecase: str [Default: 'energy_prediction']
+components:
+  comp-evaluate-model:
+    executorLabel: exec-evaluate-model
+    inputDefinitions:
+      artifacts:
+        model:
+          artifactType:
+            schemaTitle: system.Model
+            schemaVersion: 0.0.1
+        test_data:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+    outputDefinitions:
+      artifacts:
+        metrics:
+          artifactType:
+            schemaTitle: system.Metrics
+            schemaVersion: 0.0.1
+  comp-get-data:
+    executorLabel: exec-get-data
+    outputDefinitions:
+      artifacts:
+        data_csv:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+  comp-optimize-model-hyperparameters-and-train:
+    executorLabel: exec-optimize-model-hyperparameters-and-train
+    inputDefinitions:
+      artifacts:
+        train_data:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+      parameters:
+        post_base_url:
+          defaultValue: http://fastapi-model-svc.admin.svc.cluster.local:8080
+          isOptional: true
+          parameterType: STRING
+        random_state:
+          defaultValue: 42.0
+          isOptional: true
+          parameterType: NUMBER_INTEGER
+        target:
+          parameterType: STRING
+        usecase:
+          defaultValue: energy_prediction
+          isOptional: true
+          parameterType: STRING
+    outputDefinitions:
+      artifacts:
+        model_file:
+          artifactType:
+            schemaTitle: system.Model
+            schemaVersion: 0.0.1
+        params_file:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+  comp-preprocess-data:
+    executorLabel: exec-preprocess-data
+    inputDefinitions:
+      artifacts:
+        df:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+      parameters:
+        features:
+          parameterType: LIST
+        random_state:
+          parameterType: NUMBER_INTEGER
+        target:
+          parameterType: STRING
+        test_size:
+          parameterType: NUMBER_DOUBLE
+    outputDefinitions:
+      artifacts:
+        scaler_file:
+          artifactType:
+            schemaTitle: system.Model
+            schemaVersion: 0.0.1
+        test_data:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+        train_data:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+deploymentSpec:
+  executors:
+    exec-evaluate-model:
+      container:
+        args:
+        - --executor_input
+        - '{{$}}'
+        - --function_to_execute
+        - evaluate_model
+        command:
+        - sh
+        - -c
+        - "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip ||\
+          \ python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1\
+          \ python3 -m pip install --quiet --no-warn-script-location 'kfp==2.11.0'\
+          \ '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"'  &&\
+          \  python3 -m pip install --quiet --no-warn-script-location 'pandas==2.3.1'\
+          \ 'scikit-learn==1.7.1' 'joblib==1.4.2' 'fsspec==2025.9.0' && \"$0\" \"\
+          $@\"\n"
+        - sh
+        - -ec
+        - 'program_path=$(mktemp -d)
+
+
+          printf "%s" "$0" > "$program_path/ephemeral_component.py"
+
+          _KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
+
+          '
+        - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
+          \ *\n\ndef evaluate_model(\n    test_data: Input[Dataset],\n    model: Input[Model],\n\
+          \    metrics: Output[Metrics],\n):\n    \"\"\"\n    Evaluates a trained\
+          \ model on the test set and writes metrics to KFP metrics file.\n    Fully\
+          \ local; no MinIO needed.\n    \"\"\"\n    import pandas as pd\n    import\
+          \ joblib\n    from sklearn.metrics import mean_absolute_error, mean_squared_error,\
+          \ r2_score\n    #import fsspec\n\n    print(\"\u23F3 Evaluate model component\
+          \ started.\")\n\n    print(\"Loading test data from:\", test_data.path)\n\
+          \    # Load test data\n    # Download MinIO artifact to local path\n   \
+          \ # with fsspec.open(test_data.path, 'r') as f:\n    #     test_df = pd.read_csv(f)\n\
+          \    test_df = pd.read_csv(test_data.path)\n    target_col = test_df.columns[-1]\
+          \  # assume last column is target, or pass as param\n    X_test = test_df.drop(columns=[target_col])\n\
+          \    y_test = test_df[target_col]\n\n    # Load trained model\n    # with\
+          \ fsspec.open(model.path, 'r') as f:\n    #     trained_model = joblib.load(f)\n\
+          \    trained_model = joblib.load(model.path)\n\n    # Predict\n    y_pred\
+          \ = trained_model.predict(X_test)\n\n    # Compute metrics\n    mae = mean_absolute_error(y_test,\
+          \ y_pred)\n    mse = mean_squared_error(y_test, y_pred)\n    r2 = r2_score(y_test,\
+          \ y_pred)\n\n    # Print metrics\n    print(f\"\u2705 Model evaluation results:\"\
+          )\n    print(f\"MAE: {mae:.4f}\")\n    print(f\"MSE: {mse:.4f}\")\n    print(f\"\
+          R2:  {r2:.4f}\")\n\n    # Write metrics to KFP metrics JSON\n    metrics.log_metric(\"\
+          mae\", mae)\n    metrics.log_metric(\"mse\", mse)\n    metrics.log_metric(\"\
+          r2\", r2)\n    metrics.log_metric(\"n_samples\", len(y_test))\n\n    print(f\"\
+          \u2705 Metrics written to {metrics.path}\")\n    print(\"\u2705 Evaluate\
+          \ model component finished.\")\n\n"
+        image: python:3.11
+    exec-get-data:
+      container:
+        args:
+        - --executor_input
+        - '{{$}}'
+        - --function_to_execute
+        - get_data
+        command:
+        - sh
+        - -c
+        - "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip ||\
+          \ python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1\
+          \ python3 -m pip install --quiet --no-warn-script-location 'kfp==2.11.0'\
+          \ '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"'  &&\
+          \  python3 -m pip install --quiet --no-warn-script-location 'pandas==2.3.1'\
+          \ && \"$0\" \"$@\"\n"
+        - sh
+        - -ec
+        - 'program_path=$(mktemp -d)
+
+
+          printf "%s" "$0" > "$program_path/ephemeral_component.py"
+
+          _KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
+
+          '
+        - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
+          \ *\n\ndef get_data(data_csv: Output[Dataset]):\n    \"\"\"\n    Downloads\
+          \ dataset_all_data.csv from GitHub\n    and saves it as an output Dataset\
+          \ artifact.\n    \"\"\"\n    import pandas as pd\n\n    print(\"\u23F3 Get\
+          \ data component started.\")\n\n    # URL to dataset\n    url = \"https://raw.githubusercontent.com/jcorreia11/NEURONET-Project/main/experiments/UC1/all_data/dataset_all_data.csv\"\
+          \n    df = pd.read_csv(url)\n\n    # Show preview\n    print(\"\u2705 Data\
+          \ preview:\")\n    print(df.head())\n\n    # Save to artifact location (KFP\
+          \ handles MinIO upload)\n    df.to_csv(data_csv.path, index=False)\n   \
+          \ print(\"Data preview:\")\n    print(df.head())\n    print(f\"\u2705 CSV\
+          \ saved to {data_csv.path}\")\n    print(\"\u2705 Get data component finished.\"\
+          )\n\n"
+        image: python:3.11
+    exec-optimize-model-hyperparameters-and-train:
+      container:
+        args:
+        - --executor_input
+        - '{{$}}'
+        - --function_to_execute
+        - optimize_model_hyperparameters_and_train
+        command:
+        - sh
+        - -c
+        - "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip ||\
+          \ python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1\
+          \ python3 -m pip install --quiet --no-warn-script-location 'kfp==2.11.0'\
+          \ '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"'  &&\
+          \  python3 -m pip install --quiet --no-warn-script-location 'pandas==2.3.1'\
+          \ 'scikit-learn==1.7.1' 'xgboost==1.7.5' 'joblib==1.4.2' 'requests==2.31.0'\
+          \ && \"$0\" \"$@\"\n"
+        - sh
+        - -ec
+        - 'program_path=$(mktemp -d)
+
+
+          printf "%s" "$0" > "$program_path/ephemeral_component.py"
+
+          _KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
+
+          '
+        - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
+          \ *\n\ndef optimize_model_hyperparameters_and_train(\n    train_data: Input[Dataset],\n\
+          \    model_file: Output[Model],\n    params_file: Output[Dataset],\n   \
+          \ target: str,\n    random_state: int = 42,\n    usecase: str = \"energy_prediction\"\
+          ,\n    post_base_url: str = \"http://fastapi-model-svc.admin.svc.cluster.local:8080\"\
+          ,\n):\n    import pandas as pd\n    import joblib\n    import json\n   \
+          \ import requests\n    from sklearn.model_selection import RandomizedSearchCV,\
+          \ ParameterGrid\n    from sklearn.ensemble import RandomForestRegressor\n\
+          \    from sklearn.svm import SVR\n    from sklearn.linear_model import LinearRegression\n\
+          \    from xgboost import XGBRegressor\n\n    print(\"\u23F3 Optimize and\
+          \ train model component started.\")\n\n    print(\"Loading training data\
+          \ from:\", train_data.path)\n\n    train_df = pd.read_csv(train_data.path)\n\
+          \    X_train = train_df.drop(columns=[target])\n    y_train = train_df[target].values.ravel()\n\
+          \n    models = {\n        \"RandomForest\": {\"model\": RandomForestRegressor(random_state=random_state),\n\
+          \                         \"params\": {\"n_estimators\": [50, 100], \"max_depth\"\
+          : [None, 5, 10]}},\n        \"XGBoost\": {\"model\": XGBRegressor(random_state=random_state,\
+          \ eval_metric=\"rmse\"),\n                    \"params\": {\"n_estimators\"\
+          : [50, 100], \"max_depth\": [3, 5, 7], \"learning_rate\": [0.01, 0.1]}},\n\
+          \        \"SVM\": {\"model\": SVR(), \"params\": {\"C\": [0.1, 1, 10], \"\
+          kernel\": [\"linear\", \"rbf\"]}},\n        \"LinearRegression\": {\"model\"\
+          : LinearRegression(), \"params\": {}}\n    }\n\n    best_score = float(\"\
+          -inf\")\n    best_model_name = None\n    best_params = None\n\n    # Hyperparameter\
+          \ search\n    for name, m in models.items():\n        model = m[\"model\"\
+          ]\n        param_grid = m[\"params\"]\n\n        if param_grid:\n      \
+          \      n_iter = min(10, len(list(ParameterGrid(param_grid))))\n        \
+          \    search = RandomizedSearchCV(model, param_grid, n_iter=n_iter, cv=3,\n\
+          \                                        scoring=\"r2\", n_jobs=-1, random_state=random_state)\n\
+          \            search.fit(X_train, y_train)\n            score = search.best_score_\n\
+          \            params = search.best_params_\n        else:\n            model.fit(X_train,\
+          \ y_train)\n            score = model.score(X_train, y_train)\n        \
+          \    params = {}\n\n        if score > best_score:\n            best_score\
+          \ = score\n            best_model_name = name\n            best_params =\
+          \ params\n\n    # Retrain best model on all data\n    if best_model_name\
+          \ == \"RandomForest\":\n        final_model = RandomForestRegressor(random_state=random_state,\
+          \ **best_params)\n    elif best_model_name == \"XGBoost\":\n        final_model\
+          \ = XGBRegressor(random_state=random_state, eval_metric=\"rmse\", **best_params)\n\
+          \    elif best_model_name == \"SVM\":\n        final_model = SVR(**best_params)\n\
+          \    else:\n        final_model = LinearRegression()\n\n    final_model.fit(X_train,\
+          \ y_train)\n\n    # Save model and params to artifacts\n    joblib.dump(final_model,\
+          \ model_file.path)\n    with open(params_file.path, \"w\") as f:\n     \
+          \   json.dump({\"model\": best_model_name, \"parameters\": best_params},\
+          \ f, indent=2)\n\n    # BASE = \"http://10.255.40.149:30080/\"\n    # BASE\
+          \ = \"http://fastapi-model-svc.admin.svc.cluster.local:8080\"\n    BASE\
+          \ = post_base_url\n    model_file_path = model_file.path\n\n    post_url\
+          \ = f\"{BASE}/model_serializer/{usecase}\"\n\n    # Also save as pkl file\
+          \ for POST\n    joblib.dump(final_model, \"model.pkl\")\n\n    with open(\"\
+          model.pkl\", \"rb\") as f:\n        response = requests.post(post_url, files={\"\
+          file\": f})\n\n    if response.status_code == 200:\n        print(f\"\u2705\
+          \ Model uploaded successfully for usecase '{usecase}'\")\n        print(\"\
+          Response:\", response.json())\n    else:\n        print(f\"\u274C Failed\
+          \ to upload model: {response.status_code}\")\n        print(\"Response:\"\
+          , response.text)\n\n    print(f\"Training component finished.\")\n\n"
+        image: python:3.11
+    exec-preprocess-data:
+      container:
+        args:
+        - --executor_input
+        - '{{$}}'
+        - --function_to_execute
+        - preprocess_data
+        command:
+        - sh
+        - -c
+        - "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip ||\
+          \ python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1\
+          \ python3 -m pip install --quiet --no-warn-script-location 'kfp==2.11.0'\
+          \ '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"'  &&\
+          \  python3 -m pip install --quiet --no-warn-script-location 'pandas==2.3.1'\
+          \ 'scikit-learn==1.7.1' 'joblib' && \"$0\" \"$@\"\n"
+        - sh
+        - -ec
+        - 'program_path=$(mktemp -d)
+
+
+          printf "%s" "$0" > "$program_path/ephemeral_component.py"
+
+          _KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
+
+          '
+        - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
+          \ *\n\ndef preprocess_data(\n    df: Input[Dataset],\n    train_data: Output[Dataset],\n\
+          \    test_data: Output[Dataset],\n    scaler_file: Output[Model],\n    features:\
+          \ List[str],\n    target: str,\n    test_size: float,\n    random_state:\
+          \ int,\n):\n    import pandas as pd\n    from sklearn.model_selection import\
+          \ train_test_split\n    from sklearn.preprocessing import StandardScaler\n\
+          \    import joblib\n\n    print(\"\u23F3 Preprocess data component started.\"\
+          )\n\n    # \u2705 Load dataset from local path (KFP downloads automatically)\n\
+          \    data = pd.read_csv(df.path)\n\n    print(\"\u2705 Data preview:\")\n\
+          \    print(data.head())\n\n    # remove rows with missing values (on the\
+          \ features and target columns)\n    print(f\"\u2705 Data shape before dropping\
+          \ missing values: {data.shape}\")\n    data = data.dropna(subset=features\
+          \ + [target])\n    print(f\"\u2705 Data shape after dropping missing values:\
+          \ {data.shape}\")\n\n    X = data[features]\n    y = data[target]\n\n  \
+          \  X_train, X_test, y_train, y_test = train_test_split(\n        X, y, test_size=test_size,\
+          \ random_state=random_state\n    )\n\n    # scale features\n    scaler =\
+          \ StandardScaler()\n    X_train_scaled = pd.DataFrame(scaler.fit_transform(X_train),\
+          \ columns=features)\n    X_test_scaled = pd.DataFrame(scaler.transform(X_test),\
+          \ columns=features)\n\n    # merge X and y\n    train_df = pd.concat([X_train_scaled,\
+          \ y_train.reset_index(drop=True)], axis=1)\n    test_df = pd.concat([X_test_scaled,\
+          \ y_test.reset_index(drop=True)], axis=1)\n\n    # \u2705 Save to artifact\
+          \ paths (KFP uploads them to MinIO)\n    train_df.to_csv(train_data.path,\
+          \ index=False)\n    test_df.to_csv(test_data.path, index=False)\n    joblib.dump(scaler,\
+          \ scaler_file.path)\n\n    print(\"\u2705 Preprocessing done. Artifacts\
+          \ saved.\")\n    print(\"Train data saved to:\", train_data.path)\n    print(\"\
+          Test data saved to:\", test_data.path)\n    print(\"Scaler saved to:\",\
+          \ scaler_file.path)\n\n    print(\"\u2705 Preprocess data component finished.\"\
+          )\n\n"
+        image: python:3.11
+pipelineInfo:
+  description: Fetch data, preprocess, train RF, evaluate using MinIO storage.
+  name: energy-usage-regression-minio
+root:
+  dag:
+    tasks:
+      evaluate-model:
+        cachingOptions:
+          enableCache: true
+        componentRef:
+          name: comp-evaluate-model
+        dependentTasks:
+        - optimize-model-hyperparameters-and-train
+        - preprocess-data
+        inputs:
+          artifacts:
+            model:
+              taskOutputArtifact:
+                outputArtifactKey: model_file
+                producerTask: optimize-model-hyperparameters-and-train
+            test_data:
+              taskOutputArtifact:
+                outputArtifactKey: test_data
+                producerTask: preprocess-data
+        taskInfo:
+          name: evaluate-model
+      get-data:
+        cachingOptions:
+          enableCache: true
+        componentRef:
+          name: comp-get-data
+        taskInfo:
+          name: get-data
+      optimize-model-hyperparameters-and-train:
+        cachingOptions:
+          enableCache: true
+        componentRef:
+          name: comp-optimize-model-hyperparameters-and-train
+        dependentTasks:
+        - preprocess-data
+        inputs:
+          artifacts:
+            train_data:
+              taskOutputArtifact:
+                outputArtifactKey: train_data
+                producerTask: preprocess-data
+          parameters:
+            post_base_url:
+              componentInputParameter: post_base_url
+            random_state:
+              componentInputParameter: random_state
+            target:
+              componentInputParameter: target
+            usecase:
+              componentInputParameter: usecase
+        taskInfo:
+          name: optimize-model-hyperparameters-and-train
+      preprocess-data:
+        cachingOptions:
+          enableCache: true
+        componentRef:
+          name: comp-preprocess-data
+        dependentTasks:
+        - get-data
+        inputs:
+          artifacts:
+            df:
+              taskOutputArtifact:
+                outputArtifactKey: data_csv
+                producerTask: get-data
+          parameters:
+            features:
+              componentInputParameter: features
+            random_state:
+              componentInputParameter: random_state
+            target:
+              componentInputParameter: target
+            test_size:
+              componentInputParameter: test_size
+        taskInfo:
+          name: preprocess-data
+  inputDefinitions:
+    parameters:
+      features:
+        defaultValue:
+        - cpuload
+        - mem_used
+        - swap_used
+        isOptional: true
+        parameterType: LIST
+      post_base_url:
+        defaultValue: http://fastapi-model-svc.admin.svc.cluster.local:8080
+        isOptional: true
+        parameterType: STRING
+      random_state:
+        defaultValue: 42.0
+        isOptional: true
+        parameterType: NUMBER_INTEGER
+      target:
+        defaultValue: activePower
+        isOptional: true
+        parameterType: STRING
+      test_size:
+        defaultValue: 0.2
+        isOptional: true
+        parameterType: NUMBER_DOUBLE
+      usecase:
+        defaultValue: energy_prediction
+        isOptional: true
+        parameterType: STRING
+schemaVersion: 2.1.0
+sdkVersion: kfp-2.11.0
