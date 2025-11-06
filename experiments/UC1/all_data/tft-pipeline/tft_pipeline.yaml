@@ -1,0 +1,621 @@
+# PIPELINE DEFINITION
+# Name: tft-time-series-forecasting-pipeline
+# Description: Multivariate time-series forecasting for energy metrics using Temporal Fusion Transformer.
+# Inputs:
+#    features: list [Default: ['cpu_usage_nanocores', 'memory_working_set_bytes', 'disk_used_percentage']]
+#    gpus: int
+#    gradient_clip_val: float [Default: 0.1]
+#    input_chunk_length: int [Default: 24.0]
+#    n_epochs: int [Default: 30.0]
+#    output_chunk_length: int [Default: 6.0]
+#    target: str [Default: 'activePower']
+#    time_col: str [Default: 'timestamp']
+#    train_size: float [Default: 0.7]
+#    usecase: str [Default: 'energy_prediction']
+#    val_fraction: float [Default: 0.15]
+components:
+  comp-evaluate-tft:
+    executorLabel: exec-evaluate-tft
+    inputDefinitions:
+      artifacts:
+        metadata_file:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+        model_checkpoint:
+          artifactType:
+            schemaTitle: system.Model
+            schemaVersion: 0.0.1
+        test_data:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+      parameters:
+        prediction_length_override:
+          defaultValue: 0.0
+          isOptional: true
+          parameterType: NUMBER_INTEGER
+    outputDefinitions:
+      artifacts:
+        metrics:
+          artifactType:
+            schemaTitle: system.Metrics
+            schemaVersion: 0.0.1
+  comp-get-data:
+    executorLabel: exec-get-data
+    outputDefinitions:
+      artifacts:
+        data_csv:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+  comp-preprocess-time-series:
+    executorLabel: exec-preprocess-time-series
+    inputDefinitions:
+      artifacts:
+        df:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+      parameters:
+        features:
+          defaultValue:
+          - cpu_usage_nanocores
+          - memory_working_set_bytes
+          - disk_used_percentage
+          - activePower
+          - latency_ms
+          isOptional: true
+          parameterType: LIST
+        id_column:
+          isOptional: true
+          parameterType: STRING
+        max_encoder_length:
+          defaultValue: 24.0
+          isOptional: true
+          parameterType: NUMBER_INTEGER
+        prediction_length:
+          defaultValue: 6.0
+          isOptional: true
+          parameterType: NUMBER_INTEGER
+        target:
+          defaultValue: activePower
+          isOptional: true
+          parameterType: STRING
+        time_column:
+          defaultValue: timestamp
+          isOptional: true
+          parameterType: STRING
+        train_fraction:
+          defaultValue: 0.7
+          isOptional: true
+          parameterType: NUMBER_DOUBLE
+        val_fraction:
+          defaultValue: 0.15
+          isOptional: true
+          parameterType: NUMBER_DOUBLE
+    outputDefinitions:
+      artifacts:
+        metadata_file:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+        test_data:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+        train_data:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+        val_data:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+  comp-train-tft:
+    executorLabel: exec-train-tft
+    inputDefinitions:
+      artifacts:
+        metadata_file:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+        train_data:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+        val_data:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+      parameters:
+        gpus:
+          isOptional: true
+          parameterType: NUMBER_INTEGER
+        gradient_clip_val:
+          defaultValue: 0.1
+          isOptional: true
+          parameterType: NUMBER_DOUBLE
+        learning_rate:
+          defaultValue: 0.0003
+          isOptional: true
+          parameterType: NUMBER_DOUBLE
+        max_epochs:
+          defaultValue: 10.0
+          isOptional: true
+          parameterType: NUMBER_INTEGER
+        usecase:
+          defaultValue: energy_prediction
+          isOptional: true
+          parameterType: STRING
+    outputDefinitions:
+      artifacts:
+        model_checkpoint:
+          artifactType:
+            schemaTitle: system.Model
+            schemaVersion: 0.0.1
+        torchscript_model:
+          artifactType:
+            schemaTitle: system.Model
+            schemaVersion: 0.0.1
+deploymentSpec:
+  executors:
+    exec-evaluate-tft:
+      container:
+        args:
+        - --executor_input
+        - '{{$}}'
+        - --function_to_execute
+        - evaluate_tft
+        command:
+        - sh
+        - -c
+        - "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip ||\
+          \ python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1\
+          \ python3 -m pip install --quiet --no-warn-script-location 'kfp==2.11.0'\
+          \ '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"'  &&\
+          \  python3 -m pip install --quiet --no-warn-script-location 'pandas==2.3.1'\
+          \ 'numpy==1.26.4' 'torch' 'pytorch-lightning==2.0.2' 'pytorch-forecasting==0.11.5'\
+          \ 'scikit-learn==1.7.1' 'joblib==1.4.2' && \"$0\" \"$@\"\n"
+        - sh
+        - -ec
+        - 'program_path=$(mktemp -d)
+
+
+          printf "%s" "$0" > "$program_path/ephemeral_component.py"
+
+          _KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
+
+          '
+        - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
+          \ *\n\ndef evaluate_tft(\n    test_data: Input[Dataset],\n    model_checkpoint:\
+          \ Input[Model],\n    metadata_file: Input[Dataset],\n    metrics: Output[Metrics],\n\
+          \    prediction_length_override: int = 0\n):\n    \"\"\"\n    Evaluate TFT\
+          \ saved checkpoint on test CSV and log MAE, RMSE, MAPE to KFP metrics.\n\
+          \    \"\"\"\n    import pandas as pd\n    import json\n    import numpy\
+          \ as np\n    import torch\n    from sklearn.metrics import mean_absolute_error,\
+          \ mean_squared_error\n    from pytorch_forecasting import TimeSeriesDataSet,\
+          \ TemporalFusionTransformer\n    from torch.utils.data import DataLoader\n\
+          \n    print(\"\u23F3 Evaluate TFT component started.\")\n    with open(metadata_file.path,\
+          \ \"r\") as f:\n        metadata = json.load(f)\n\n    id_col = metadata[\"\
+          id_column\"]\n    features = metadata[\"features\"]\n    target = metadata[\"\
+          target\"]\n    prediction_length = metadata[\"prediction_length\"]\n   \
+          \ max_encoder_length = metadata[\"max_encoder_length\"]\n\n    if prediction_length_override\
+          \ and prediction_length_override > 0:\n        prediction_length = prediction_length_override\n\
+          \n    print(\"Reading test CSV:\", test_data.path)\n    test_df = pd.read_csv(test_data.path)\n\
+          \n    if \"time_idx\" not in test_df.columns:\n        test_df[\"time_idx\"\
+          ] = test_df.groupby(id_col).cumcount()\n    test_df[\"time_idx\"] = test_df[\"\
+          time_idx\"].astype(int)\n\n    best_model_path = model_checkpoint.path\n\
+          \    print(\"Loading model checkpoint from:\", best_model_path)\n    model\
+          \ = TemporalFusionTransformer.load_from_checkpoint(best_model_path)\n\n\
+          \    dataset = TimeSeriesDataSet(\n        test_df,\n        time_idx=\"\
+          time_idx\",\n        target=target,\n        group_ids=[id_col],\n     \
+          \   max_encoder_length=max_encoder_length,\n        max_prediction_length=prediction_length,\n\
+          \        time_varying_known_reals=[\"time_idx\"],\n        time_varying_unknown_reals=[target]\
+          \ + features,\n        target_normalizer=None,\n    )\n\n    dataloader\
+          \ = DataLoader(dataset, batch_size=64, shuffle=False, num_workers=0)\n\n\
+          \    preds = []\n    for batch in dataloader:\n        with torch.no_grad():\n\
+          \            # pytorch-forecasting model.predict can accept a batch\n  \
+          \          out = model.predict(batch, return_x=False)\n            if isinstance(out,\
+          \ torch.Tensor):\n                arr = out.detach().cpu().numpy()\n   \
+          \         else:\n                # sometimes returns numpy already\n   \
+          \             arr = np.array(out)\n            preds.append(arr)\n\n   \
+          \ if len(preds) == 0:\n        raise RuntimeError(\"No predictions were\
+          \ produced (empty dataloader?)\")\n\n    preds = np.concatenate(preds, axis=0).ravel()\n\
+          \n    # Build ground-truth sequence: last prediction_length values per group\n\
+          \    true_vals = []\n    for gid, grp in test_df.groupby(id_col):\n    \
+          \    arr = grp[target].values\n        if len(arr) >= prediction_length:\n\
+          \            true_vals.append(arr[-prediction_length:])\n    if len(true_vals)\
+          \ == 0:\n        raise RuntimeError(\"No groups in test set had enough length\
+          \ for evaluation\")\n    trues = np.concatenate(true_vals, axis=0).ravel()\n\
+          \n    # align lengths\n    min_len = min(len(preds), len(trues))\n    preds\
+          \ = preds[:min_len]\n    trues = trues[:min_len]\n\n    mae = mean_absolute_error(trues,\
+          \ preds)\n    mse = mean_squared_error(trues, preds)\n    rmse = np.sqrt(mse)\n\
+          \    denom = np.where(trues == 0, 1e-8, trues)\n    mape = np.mean(np.abs((trues\
+          \ - preds) / denom)) * 100.0\n\n    print(f\"Evaluation results -> MAE:\
+          \ {mae:.4f}, RMSE: {rmse:.4f}, MAPE: {mape:.2f}%\")\n\n    metrics.log_metric(\"\
+          mae\", float(mae))\n    metrics.log_metric(\"rmse\", float(rmse))\n    metrics.log_metric(\"\
+          mape\", float(mape))\n    metrics.log_metric(\"n_test_samples\", int(min_len))\n\
+          \n    print(\"\u2705 Metrics written to:\", metrics.path)\n    print(\"\u2705\
+          \ Evaluate TFT component finished.\")\n\n"
+        image: python:3.11
+    exec-get-data:
+      container:
+        args:
+        - --executor_input
+        - '{{$}}'
+        - --function_to_execute
+        - get_data
+        command:
+        - sh
+        - -c
+        - "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip ||\
+          \ python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1\
+          \ python3 -m pip install --quiet --no-warn-script-location 'kfp==2.11.0'\
+          \ '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"'  &&\
+          \  python3 -m pip install --quiet --no-warn-script-location 'pandas==2.3.1'\
+          \ && \"$0\" \"$@\"\n"
+        - sh
+        - -ec
+        - 'program_path=$(mktemp -d)
+
+
+          printf "%s" "$0" > "$program_path/ephemeral_component.py"
+
+          _KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
+
+          '
+        - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
+          \ *\n\ndef get_data(data_csv: Output[Dataset]):\n    \"\"\"\n    Downloads\
+          \ dataset_all_data.csv from GitHub and saves it as an output Dataset artifact.\n\
+          \    \"\"\"\n    import pandas as pd\n\n    print(\"\u23F3 Get data component\
+          \ started.\")\n\n    url = \"https://raw.githubusercontent.com/jcorreia11/NEURONET-Project/main/experiments/UC1/all_data/dataset_all_data.csv\"\
+          \n    df = pd.read_csv(url)\n\n    print(\"\u2705 Data preview:\")\n   \
+          \ print(df.head())\n\n    # Save to artifact location (KFP handles upload)\n\
+          \    df.to_csv(data_csv.path, index=False)\n    print(f\"\u2705 CSV saved\
+          \ to {data_csv.path}\")\n    print(\"\u2705 Get data component finished.\"\
+          )\n\n"
+        image: python:3.11
+    exec-preprocess-time-series:
+      container:
+        args:
+        - --executor_input
+        - '{{$}}'
+        - --function_to_execute
+        - preprocess_time_series
+        command:
+        - sh
+        - -c
+        - "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip ||\
+          \ python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1\
+          \ python3 -m pip install --quiet --no-warn-script-location 'kfp==2.11.0'\
+          \ '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"'  &&\
+          \  python3 -m pip install --quiet --no-warn-script-location 'pandas==2.3.1'\
+          \ 'numpy==1.26.4' 'scikit-learn==1.7.1' 'joblib==1.4.2' && \"$0\" \"$@\"\
+          \n"
+        - sh
+        - -ec
+        - 'program_path=$(mktemp -d)
+
+
+          printf "%s" "$0" > "$program_path/ephemeral_component.py"
+
+          _KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
+
+          '
+        - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
+          \ *\n\ndef preprocess_time_series(\n    df: Input[Dataset],\n    train_data:\
+          \ Output[Dataset],\n    val_data: Output[Dataset],\n    test_data: Output[Dataset],\n\
+          \    metadata_file: Output[Dataset],\n    time_column: str = \"timestamp\"\
+          ,\n    id_column: Optional[str] = None,\n    features: List[str] = [\"cpu_usage_nanocores\"\
+          , \"memory_working_set_bytes\", \"disk_used_percentage\", \"activePower\"\
+          , \"latency_ms\"],\n    target: str = \"activePower\",\n    prediction_length:\
+          \ int = 6,\n    max_encoder_length: int = 24,\n    train_fraction: float\
+          \ = 0.7,\n    val_fraction: float = 0.15\n):\n    \"\"\"\n    Convert raw\
+          \ CSV into TFT-friendly long format with integer time_idx and train/val/test\
+          \ splits.\n    \"\"\"\n    import pandas as pd\n    import numpy as np\n\
+          \    import json\n\n    print(\"\u23F3 Preprocess_time_series component\
+          \ started.\")\n    print(\"Loading data from:\", df.path)\n\n    data =\
+          \ pd.read_csv(df.path)\n    print(\"Raw data preview:\")\n    print(data.head())\n\
+          \n    if time_column not in data.columns:\n        raise ValueError(f\"\
+          time_column '{time_column}' not found in dataset columns: {list(data.columns)}\"\
+          )\n\n    # parse time column\n    data[time_column] = pd.to_datetime(data[time_column],\
+          \ errors=\"coerce\")\n    if data[time_column].isna().any():\n        data\
+          \ = data.dropna(subset=[time_column])\n\n    # If id_column not provided,\
+          \ create synthetic series id\n    if id_column:\n        if id_column not\
+          \ in data.columns:\n            raise ValueError(f\"id_column '{id_column}'\
+          \ not found in dataset columns.\")\n        data = data.sort_values([id_column,\
+          \ time_column])\n    else:\n        data = data.sort_values(time_column)\n\
+          \        data[\"_series_id\"] = \"single_series\"\n        id_column = \"\
+          _series_id\"\n\n    # create integer time_idx per group\n    def make_time_idx(group):\n\
+          \        group = group.reset_index(drop=True)\n        group[\"time_idx\"\
+          ] = np.arange(len(group))\n        return group\n\n    data = data.groupby(id_column,\
+          \ group_keys=False).apply(make_time_idx).reset_index(drop=True)\n\n    #\
+          \ ensure features & target exist\n    missing = [c for c in features + [target]\
+          \ if c not in data.columns]\n    if missing:\n        raise ValueError(f\"\
+          The following required columns are missing from the dataset: {missing}\"\
+          )\n\n    # drop rows with NA in features/target\n    print(\"Shape before\
+          \ dropping NA on features+target:\", data.shape)\n    data = data.dropna(subset=features\
+          \ + [target])\n    print(\"Shape after dropping NA on features+target:\"\
+          , data.shape)\n\n    # compute splits per-group\n    test_fraction = 1.0\
+          \ - (train_fraction + val_fraction)\n    if test_fraction <= 0:\n      \
+          \  raise ValueError(\"train_fraction + val_fraction must be < 1.0\")\n\n\
+          \    train_list, val_list, test_list = [], [], []\n    for gid, grp in data.groupby(id_column):\n\
+          \        n = len(grp)\n        if n < (max_encoder_length + prediction_length\
+          \ + 1):\n            print(f\"\u26A0\uFE0F Skipping group {gid}: length\
+          \ {n} < encoder+prediction ({max_encoder_length+prediction_length})\")\n\
+          \            continue\n        i_train = int(n * train_fraction)\n     \
+          \   i_val = int(n * (train_fraction + val_fraction))\n\n        train_list.append(grp.iloc[:i_train])\n\
+          \        val_list.append(grp.iloc[i_train:i_val])\n        test_list.append(grp.iloc[i_val:])\n\
+          \n    train_df = pd.concat(train_list, ignore_index=True) if train_list\
+          \ else pd.DataFrame(columns=data.columns)\n    val_df = pd.concat(val_list,\
+          \ ignore_index=True) if val_list else pd.DataFrame(columns=data.columns)\n\
+          \    test_df = pd.concat(test_list, ignore_index=True) if test_list else\
+          \ pd.DataFrame(columns=data.columns)\n\n    # Save CSVs\n    train_df.to_csv(train_data.path,\
+          \ index=False)\n    val_df.to_csv(val_data.path, index=False)\n    test_df.to_csv(test_data.path,\
+          \ index=False)\n\n    # Save metadata for downstream components\n    metadata\
+          \ = {\n        \"time_column\": time_column,\n        \"id_column\": id_column,\n\
+          \        \"features\": features,\n        \"target\": target,\n        \"\
+          prediction_length\": prediction_length,\n        \"max_encoder_length\"\
+          : max_encoder_length,\n        \"n_train_groups\": int(train_df[id_column].nunique())\
+          \ if id_column in train_df.columns else 0,\n        \"n_val_groups\": int(val_df[id_column].nunique())\
+          \ if id_column in val_df.columns else 0,\n        \"n_test_groups\": int(test_df[id_column].nunique())\
+          \ if id_column in test_df.columns else 0,\n        \"train_rows\": int(len(train_df)),\n\
+          \        \"val_rows\": int(len(val_df)),\n        \"test_rows\": int(len(test_df)),\n\
+          \    }\n    with open(metadata_file.path, \"w\") as f:\n        json.dump(metadata,\
+          \ f, indent=2)\n\n    print(\"\u2705 Preprocessing done. Artifacts saved:\"\
+          )\n    print(\" - train:\", train_data.path, \"rows:\", len(train_df))\n\
+          \    print(\" - val:  \", val_data.path, \"rows:\", len(val_df))\n    print(\"\
+          \ - test: \", test_data.path, \"rows:\", len(test_df))\n    print(\" - metadata:\"\
+          , metadata_file.path)\n    print(\"\u2705 Preprocess_time_series component\
+          \ finished.\")\n\n"
+        image: python:3.11
+    exec-train-tft:
+      container:
+        args:
+        - --executor_input
+        - '{{$}}'
+        - --function_to_execute
+        - train_tft
+        command:
+        - sh
+        - -c
+        - "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip ||\
+          \ python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1\
+          \ python3 -m pip install --quiet --no-warn-script-location 'kfp==2.11.0'\
+          \ '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"'  &&\
+          \  python3 -m pip install --quiet --no-warn-script-location 'pandas==2.3.1'\
+          \ 'numpy==1.26.4' 'torch' 'pytorch-lightning==2.0.2' 'pytorch-forecasting==0.11.5'\
+          \ 'scikit-learn==1.7.1' 'joblib==1.4.2' 'torchmetrics==0.11.4' 'tqdm' &&\
+          \ \"$0\" \"$@\"\n"
+        - sh
+        - -ec
+        - 'program_path=$(mktemp -d)
+
+
+          printf "%s" "$0" > "$program_path/ephemeral_component.py"
+
+          _KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
+
+          '
+        - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
+          \ *\n\ndef train_tft(\n    train_data: Input[Dataset],\n    val_data: Input[Dataset],\n\
+          \    metadata_file: Input[Dataset],\n    model_checkpoint: Output[Model],\n\
+          \    torchscript_model: Output[Model],\n    usecase: str = \"energy_prediction\"\
+          ,\n    max_epochs: int = 10,\n    learning_rate: float = 3e-4,\n    gradient_clip_val:\
+          \ float = 0.1,\n    gpus: Optional[int] = None,\n):\n    \"\"\"\n    Train\
+          \ a Temporal Fusion Transformer (TFT) model using pytorch-forecasting.\n\
+          \    \"\"\"\n    import os\n    import json\n    import pandas as pd\n \
+          \   import numpy as np\n    import shutil\n    import torch\n    from pytorch_lightning\
+          \ import Trainer\n    from pytorch_lightning.callbacks import EarlyStopping,\
+          \ ModelCheckpoint\n    from pytorch_lightning.loggers import CSVLogger\n\
+          \    from pytorch_forecasting import TimeSeriesDataSet, TemporalFusionTransformer,\
+          \ QuantileLoss\n    from pytorch_forecasting.data import GroupNormalizer\n\
+          \    from torch.utils.data import DataLoader\n\n    print(\"\u23F3 Train\
+          \ TFT component started.\")\n    with open(metadata_file.path, \"r\") as\
+          \ f:\n        metadata = json.load(f)\n\n    time_col = metadata[\"time_column\"\
+          ]\n    id_col = metadata[\"id_column\"]\n    features = metadata[\"features\"\
+          ]\n    target = metadata[\"target\"]\n    prediction_length = metadata[\"\
+          prediction_length\"]\n    max_encoder_length = metadata[\"max_encoder_length\"\
+          ]\n\n    print(\"Reading train/val CSVs\")\n    train_df = pd.read_csv(train_data.path)\n\
+          \    val_df = pd.read_csv(val_data.path)\n\n    # ensure time_idx exists\n\
+          \    if \"time_idx\" not in train_df.columns:\n        train_df[\"time_idx\"\
+          ] = train_df.groupby(id_col).cumcount()\n    if \"time_idx\" not in val_df.columns:\n\
+          \        val_df[\"time_idx\"] = val_df.groupby(id_col).cumcount()\n\n  \
+          \  train_df[\"time_idx\"] = train_df[\"time_idx\"].astype(int)\n    val_df[\"\
+          time_idx\"] = val_df[\"time_idx\"].astype(int)\n\n    # build datasets\n\
+          \    training_cutoff = train_df[\"time_idx\"].max()\n\n    train_dataset\
+          \ = TimeSeriesDataSet(\n        train_df,\n        time_idx=\"time_idx\"\
+          ,\n        target=target,\n        group_ids=[id_col],\n        max_encoder_length=max_encoder_length,\n\
+          \        max_prediction_length=prediction_length,\n        time_varying_known_reals=[\"\
+          time_idx\"],\n        time_varying_unknown_reals=[target] + features,\n\
+          \        target_normalizer=GroupNormalizer(groups=[id_col], transformation=\"\
+          softplus\"),\n    )\n\n    val_dataset = TimeSeriesDataSet.from_dataset(train_dataset,\
+          \ val_df, predict=True, stop_randomization=True)\n\n    train_dataloader\
+          \ = DataLoader(train_dataset, batch_size=64, shuffle=True, num_workers=0)\n\
+          \    val_dataloader = DataLoader(val_dataset, batch_size=64, shuffle=False,\
+          \ num_workers=0)\n\n    checkpoint_callback = ModelCheckpoint(monitor=\"\
+          val_loss\", mode=\"min\", save_top_k=1, dirpath=\"checkpoints\", filename=\"\
+          tft-{epoch:02d}-{val_loss:.4f}\")\n    early_stop_callback = EarlyStopping(monitor=\"\
+          val_loss\", patience=3, mode=\"min\")\n    logger = CSVLogger(save_dir=\"\
+          .\", name=\"tft_logs\")\n\n    tft = TemporalFusionTransformer.from_dataset(\n\
+          \        train_dataset,\n        learning_rate=learning_rate,\n        hidden_size=16,\n\
+          \        attention_head_size=4,\n        dropout=0.1,\n        hidden_continuous_size=8,\n\
+          \        output_size=1,\n        loss=QuantileLoss(),\n        log_interval=10,\n\
+          \        reduce_on_plateau_patience=4,\n    )\n\n    trainer_kwargs = dict(\n\
+          \        max_epochs=max_epochs,\n        gradient_clip_val=gradient_clip_val,\n\
+          \        callbacks=[checkpoint_callback, early_stop_callback],\n       \
+          \ logger=logger\n    )\n    if gpus and torch.cuda.is_available():\n   \
+          \     trainer_kwargs[\"accelerator\"] = \"gpu\"\n        trainer_kwargs[\"\
+          devices\"] = gpus\n\n    trainer = Trainer(**trainer_kwargs)\n\n    print(\"\
+          Training TFT model...\")\n    trainer.fit(\n        tft,\n        train_dataloaders=train_dataloader,\n\
+          \        val_dataloaders=val_dataloader\n    )\n\n    best_model_path =\
+          \ checkpoint_callback.best_model_path\n    if not best_model_path:\n   \
+          \     # fallback: search checkpoint dir\n        ckpt_dir = \"checkpoints\"\
+          \n        if os.path.isdir(ckpt_dir):\n            candidates = [os.path.join(ckpt_dir,\
+          \ f) for f in os.listdir(ckpt_dir) if f.endswith(\".ckpt\")]\n         \
+          \   candidates.sort(key=os.path.getmtime, reverse=True)\n            best_model_path\
+          \ = candidates[0] if candidates else \"\"\n    if not best_model_path:\n\
+          \        raise RuntimeError(\"No checkpoint found after training.\")\n\n\
+          \    print(\"Best checkpoint saved at:\", best_model_path)\n\n    # copy\
+          \ checkpoint to the model artifact path\n    shutil.copy(best_model_path,\
+          \ model_checkpoint.path)\n\n    # try to save a torch state_dict as auxiliary\
+          \ artifact (we append .pth)\n    try:\n        best_tft = TemporalFusionTransformer.load_from_checkpoint(best_model_path)\n\
+          \        torch.save(best_tft.state_dict(), torchscript_model.path + \".pth\"\
+          )\n        print(\"\u2705 Saved PyTorch state_dict to\", torchscript_model.path\
+          \ + \".pth\")\n    except Exception as e:\n        print(\"\u26A0\uFE0F\
+          \ TorchScript/state_dict export failed:\", str(e))\n        with open(torchscript_model.path,\
+          \ \"w\") as f:\n            f.write(\"export_failed\")\n\n    print(\"\u2705\
+          \ Training finished. Model checkpoint saved to:\", model_checkpoint.path)\n\
+          \    print(\"\u2705 train_tft component finished.\")\n\n"
+        image: python:3.11
+pipelineInfo:
+  description: Multivariate time-series forecasting for energy metrics using Temporal
+    Fusion Transformer.
+  name: tft-time-series-forecasting-pipeline
+root:
+  dag:
+    tasks:
+      evaluate-tft:
+        cachingOptions:
+          enableCache: true
+        componentRef:
+          name: comp-evaluate-tft
+        dependentTasks:
+        - preprocess-time-series
+        - train-tft
+        inputs:
+          artifacts:
+            metadata_file:
+              taskOutputArtifact:
+                outputArtifactKey: metadata_file
+                producerTask: preprocess-time-series
+            model_checkpoint:
+              taskOutputArtifact:
+                outputArtifactKey: model_checkpoint
+                producerTask: train-tft
+            test_data:
+              taskOutputArtifact:
+                outputArtifactKey: test_data
+                producerTask: preprocess-time-series
+        taskInfo:
+          name: evaluate-tft
+      get-data:
+        cachingOptions:
+          enableCache: true
+        componentRef:
+          name: comp-get-data
+        taskInfo:
+          name: get-data
+      preprocess-time-series:
+        cachingOptions:
+          enableCache: true
+        componentRef:
+          name: comp-preprocess-time-series
+        dependentTasks:
+        - get-data
+        inputs:
+          artifacts:
+            df:
+              taskOutputArtifact:
+                outputArtifactKey: data_csv
+                producerTask: get-data
+          parameters:
+            features:
+              componentInputParameter: features
+            max_encoder_length:
+              componentInputParameter: input_chunk_length
+            prediction_length:
+              componentInputParameter: output_chunk_length
+            target:
+              componentInputParameter: target
+            time_column:
+              componentInputParameter: time_col
+            train_fraction:
+              componentInputParameter: train_size
+            val_fraction:
+              componentInputParameter: val_fraction
+        taskInfo:
+          name: preprocess-time-series
+      train-tft:
+        cachingOptions:
+          enableCache: true
+        componentRef:
+          name: comp-train-tft
+        dependentTasks:
+        - preprocess-time-series
+        inputs:
+          artifacts:
+            metadata_file:
+              taskOutputArtifact:
+                outputArtifactKey: metadata_file
+                producerTask: preprocess-time-series
+            train_data:
+              taskOutputArtifact:
+                outputArtifactKey: train_data
+                producerTask: preprocess-time-series
+            val_data:
+              taskOutputArtifact:
+                outputArtifactKey: val_data
+                producerTask: preprocess-time-series
+          parameters:
+            gpus:
+              componentInputParameter: gpus
+            gradient_clip_val:
+              componentInputParameter: gradient_clip_val
+            max_epochs:
+              componentInputParameter: n_epochs
+            usecase:
+              componentInputParameter: usecase
+        taskInfo:
+          name: train-tft
+  inputDefinitions:
+    parameters:
+      features:
+        defaultValue:
+        - cpu_usage_nanocores
+        - memory_working_set_bytes
+        - disk_used_percentage
+        isOptional: true
+        parameterType: LIST
+      gpus:
+        isOptional: true
+        parameterType: NUMBER_INTEGER
+      gradient_clip_val:
+        defaultValue: 0.1
+        isOptional: true
+        parameterType: NUMBER_DOUBLE
+      input_chunk_length:
+        defaultValue: 24.0
+        isOptional: true
+        parameterType: NUMBER_INTEGER
+      n_epochs:
+        defaultValue: 30.0
+        isOptional: true
+        parameterType: NUMBER_INTEGER
+      output_chunk_length:
+        defaultValue: 6.0
+        isOptional: true
+        parameterType: NUMBER_INTEGER
+      target:
+        defaultValue: activePower
+        isOptional: true
+        parameterType: STRING
+      time_col:
+        defaultValue: timestamp
+        isOptional: true
+        parameterType: STRING
+      train_size:
+        defaultValue: 0.7
+        isOptional: true
+        parameterType: NUMBER_DOUBLE
+      usecase:
+        defaultValue: energy_prediction
+        isOptional: true
+        parameterType: STRING
+      val_fraction:
+        defaultValue: 0.15
+        isOptional: true
+        parameterType: NUMBER_DOUBLE
+schemaVersion: 2.1.0
+sdkVersion: kfp-2.11.0
